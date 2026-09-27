@@ -670,6 +670,65 @@ ipcMain.handle('aios:lists', () => ({
   running: aios.listOperatorSessions(),
   suggestions: aios.listAgentSuggestions(),
 }));
+/* ── aios:memoryMap — the memory-map graph for the dashboard's map view.
+   Built from the same file index the explorer uses, so the map can never drift
+   from what the vault actually contains. Nodes are files; links are inferred
+   from shared directory ancestry (two files under the same folder are related).
+   kind/layer/area are derived from the path, never hand-authored. */
+ipcMain.handle('aios:memoryMap', () => {
+  const files = aios.fileIndex();
+  const nodes = files.map((f) => {
+    const rel = f.path.replace(/\\/g, '/');
+    const seg = rel.split('/');
+    const area = f.root || 'aios';
+    const under = (p: string) => rel.includes('/' + p + '/') || rel.startsWith(p + '/');
+    let kind: string, layer: string;
+    if (under('agents')) { kind = 'agent'; layer = 'skills'; }
+    else if (under('skills')) { kind = 'skill'; layer = 'skills'; }
+    else if (under('templates')) { kind = 'area'; layer = 'skills'; }
+    else if (under('plugins') || under('mcps') || under('hooks')) { kind = 'app'; layer = 'apps'; }
+    else if (under('vault/00 - notes/context')) { kind = 'memory'; layer = 'memory'; }
+    else if (under('vault/00 - notes/projects')) { kind = 'project'; layer = 'memory'; }
+    else if (under('vault/01 - calendar')) { kind = 'note'; layer = 'runs'; }
+    else if (under('vault/00 - notes')) { kind = 'note'; layer = 'memory'; }
+    else if (under('vault')) { kind = 'area'; layer = 'core'; }
+    else if (under('tests') || under('scripts')) { kind = 'run'; layer = 'runs'; }
+    else { kind = 'root'; layer = 'core'; }
+    return {
+      id: rel,
+      kind,
+      label: f.name.replace(/\.(md|html?|pdf|png|jpe?g|svg|json|css|ts|js|txt)$/i, ''),
+      area,
+      layer,
+      path: rel,
+      note: seg[seg.length - 1],
+      changed: 0,
+    };
+  });
+  // links: two nodes share a directory prefix → related. Cap per pair to keep the
+  // force layout tractable on a 100k-node vault.
+  const byDir = new Map<string, string[]>();
+  for (const n of nodes) {
+    const i = n.path.lastIndexOf('/');
+    const dir = i > 0 ? n.path.slice(0, i) : '__root__';
+    let arr = byDir.get(dir);
+    if (!arr) { arr = []; byDir.set(dir, arr); }
+    arr.push(n.id);
+  }
+  const links: { s: string; t: string }[] = [];
+  const seen = new Set<string>();
+  for (const arr of byDir.values()) {
+    if (arr.length < 2 || arr.length > 40) continue;
+    for (let i = 0; i < arr.length; i++) {
+      // connect each file to the first sibling only — a star per folder, not a clique
+      const k = arr[i] + '|' + arr[0];
+      if (i === 0 || seen.has(k)) continue;
+      seen.add(k);
+      links.push({ s: arr[0], t: arr[i] });
+    }
+  }
+  return { nodes, links };
+});
 ipcMain.handle('fs:index', () => aios.fileIndex());
 ipcMain.handle('aios:plugins', () => ({
   catalog: aios.pluginCatalog(),

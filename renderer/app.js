@@ -601,6 +601,10 @@ const CARD_ICONS = {
   pReports: 'chart',
   pHealth: 'check',
   pConnectors: 'plug',
+  pSkills: 'skill',       // Skills Deck — the RB-OS port
+  pMicro: 'layout',      // Micro Apps — the operator's custom tools
+  pRoutines: 'clock',    // Routines — scheduled agent runs
+  pMap: 'globe',         // Memory map — the operator's graph of everything they know
 };
 function cardIcon(key) { return CARD_ICONS[key] || 'star'; }
 
@@ -774,11 +778,17 @@ function renderPulseState(m) {
     feedMark(r, 'out', o.path);
   }
   O.style.display = (m.outputs || []).length && !O.dataset.off ? '' : 'none';
+  renderArtifactRing(m.outputs || []);   // center-stage ring of recent outputs (RB-OS port)
   // the action cards (the extension's Quick / Daily / Workspaces / Context / Reports)
   pulse.lastState = m;
   pulse.goAgents = m.goAgents || 0;
   updateAgentBadge(m.goAgents);
   renderActionCards(m);
+  void renderSkillsDeck();   // the RB-OS Skills Deck — reads real skills, not prototype JSON
+  void renderCalendarFoot(); // analog clock + year grid + what's next, under the calendar
+  void renderMicroApps();   // connector shelf + frequent tasks
+  void renderRoutines();    // scheduled agent runs
+  void renderMap();        // the memory-map graph (RB-OS port)
   feedPrime('nudge', 'learn', 'out', 'rep'); // boot render isn't "new" — animate only from here on
   if (pulse.lastRunning) renderPulseRunning(pulse.lastRunning);
 }
@@ -840,7 +850,7 @@ window.addEventListener('focus', refreshSalutes);
    way: "I connected atlassian back and it still looked disconnected."
    Focus is the right trigger because every path that changes a connector leaves this window: a
    guided session in a pane, a terminal, a browser consent screen. Coming back IS the signal. */
-window.addEventListener('focus', () => void refreshConnectors());
+window.addEventListener('focus', () => { void refreshConnectors(); void renderSkillsDeck(); });
 
 function pbtn(parent, { emoji, label, key, val, onClick, accent }) {
   const b = el('button', 'pbtn' + (accent ? ' accent' : ''));
@@ -944,6 +954,345 @@ function renderActionCards(m) {
     const it = pbtn(R, { emoji: fileIconName(r.name), label: r.name, key: t('pulse.reportRecent'), val: ext && ext !== r.name.toLowerCase() ? ext : '', onClick: () => void openViewer(r.path) });
     feedMark(it, 'rep', r.path);
   }
+}
+
+/* ── Micro Apps — the operator's custom tools. RB-OS lists bespoke apps; here that
+   surface is the connector shelf (the things wired into the vault) plus the operator's
+   frequent tasks — both already first-class in AIOS. Clicking a connector opens its
+   guided session; clicking a frequent task fires it. ─────────────────────────── */
+async function renderMicroApps() {
+  const M = document.getElementById('pMicro');
+  if (!M) return;
+  M.replaceChildren();
+  M.appendChild(pulseTitle(M, 'pMicro', 'Micro Apps'));
+  const list = el('div', 'applist');
+  let rows = [];
+  try {
+    const [f, conn] = await Promise.all([
+      window.glassShell.aiosLists().then((l) => l.frequent || []),
+      window.glassShell.connectorsList().then((c) => c.rows || []),
+    ]);
+    for (const f of f) rows.push({ kind: 'task', name: f.label, desc: f.hint || (f.target || ''), icon: 'layout', accent: false, run: () => runFrequent(f) });
+    for (const c of conn) rows.push({ kind: 'connector', name: c.name, desc: c.status || c.service || '', icon: 'plug', accent: c.status === 'connected', run: () => void connectSession(c) });
+  } catch { /* empty */ }
+  if (!rows.length) { M.style.display = 'none'; return; }
+  M.style.display = '';
+  for (const r of rows) {
+    const a = el('button', 'applist-row' + (r.accent ? ' on' : ''));
+    a.innerHTML = `<span class="ico">${icon(r.icon, 13)}</span><span><span class="nm">${escHtml(r.name)}</span><br><span class="ds">${escHtml(r.desc || '')}</span></span><span class="ar">›</span>`;
+    a.addEventListener('click', () => r.run());
+    list.appendChild(a);
+  }
+  M.appendChild(list);
+}
+
+/* ── Routines — scheduled agent runs. The RB-OS table is a status ledger; here the
+   rows are the operator's frequent tasks (the standing runs) and the running sessions
+   (the ones firing right now), with the soonest upcoming highlighted. ────────── */
+async function renderRoutines() {
+  const R = document.getElementById('pRoutines');
+  if (!R) return;
+  R.replaceChildren();
+  R.appendChild(pulseTitle(R, 'pRoutines', 'Routines'));
+  let freq = [], live = [];
+  try {
+    const L = await window.glassShell.aiosLists();
+    freq = L.frequent || [];
+    live = (L.running || []).filter((s) => s.status === 'running' || s.status === 'busy');
+  } catch { /* empty */ }
+  const fired = live.length;
+  const total = freq.length;
+  const stat = el('div', 'routines-stat');
+  stat.textContent = `${fired}/${total} running now`;
+  R.appendChild(stat);
+  const tbl = el('table', 'routines-table');
+  const thead = el('thead');
+  const thr = el('tr');
+  for (const h of ['time', 'name', 'status']) { const th = el('th', h); th.textContent = h.toUpperCase(); thr.appendChild(th); }
+  thead.appendChild(thr);
+  tbl.appendChild(thead);
+  const tbody = el('tbody');
+  const now = new Date();
+  const stamp = `${now.getDate()} ${now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}, ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}`;
+  const rows = freq.map((f, i) => {
+    const running = live.some((s) => s.name === (f.target || ''));
+    const tr = el('tr', running ? 'is-next' : '');
+    const t = el('td', 'time'); t.textContent = stamp;
+    const n = el('td', 'name'); n.innerHTML = `${escHtml(f.label)}<span class="days">${escHtml(f.target || '')}</span>`;
+    const s = el('td'); const chip = el('span', 'chip ' + (running ? 'next' : 'queued')); chip.textContent = running ? 'RUNNING' : 'queued';
+    s.appendChild(chip);
+    tr.append(t, n, s);
+    tbody.appendChild(tr);
+  });
+  if (!rows.length) {
+    const tr = el('tr');
+    const t = el('td', 'none'); t.colSpan = 3; t.textContent = 'Nothing scheduled';
+    tr.appendChild(t); tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+  R.appendChild(tbl);
+  const foot = el('div', 'routines-foot');
+  foot.innerHTML = `<span>${live.length} live</span><span>${stamp}</span>`;
+  R.appendChild(foot);
+}
+
+/* ── Memory map — the operator's graph of everything they know (RB-OS port).
+   The canvas lives in `map.js`; this just makes sure the card is shown and the
+   data is fetched. The map boots itself on `d3:ready`, so it works whether the
+   shim landed before or after this call. */
+function renderMap() {
+  const M = document.getElementById('pMap');
+  if (!M) return;
+  M.style.display = '';
+  // The canvas boots ONLY on d3:ready — `window.d3` exists the moment the shim
+  // runs, but the umbrella bundle has not executed yet, so an early boot would
+  // call d3.select on an empty object and then never re-boot (guarded).
+  if (window.__mapBoot) return;
+  window.__mapBoot = true;
+  window.addEventListener('d3:ready', () => { if (typeof window.bootMap === 'function') window.bootMap(); }, { once: true });
+  // fetch the graph; map.js re-renders when it lands
+  try { if (window.glassShell && window.glassShell.memoryMap) void window.glassShell.memoryMap(); } catch {}
+}
+
+/* ── Artifact ring — the center-stage ring of recent outputs (RB-OS port).
+   Sits behind the empty-state hint; the core is the "open a note" hub, the nodes
+   are the five most recent outputs, each opening its file. ────────────────────── */
+function renderArtifactRing(outputs) {
+  const ring = document.getElementById('artifact-ring');
+  if (!ring) return;
+  const nodes = (outputs || []).slice(0, 14);
+  if (!nodes.length) { ring.hidden = true; return; }
+  ring.hidden = false;
+  ring.querySelectorAll('.ring-node').forEach((n) => n.remove());
+  const core = document.getElementById('ring-core');
+  core.onclick = () => void quickOpen();
+  document.getElementById('ring-ico').textContent = '⬡';
+  document.getElementById('ring-lb').textContent = 'OPEN';
+  const n = nodes.length;
+  nodes.forEach((a, i) => {
+    const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const rPct = 44;
+    const x = 50 + Math.cos(angle) * rPct;
+    const y = 50 + Math.sin(angle) * rPct;
+    const btn = el('a', 'ring-node');
+    btn.href = '#';
+    btn.title = a.name || '';
+    btn.innerHTML = `<span>▪</span><span class="lb">${escHtml((a.name || '').split(/[\\/]/).pop() || '')}</span>`;
+    btn.addEventListener('click', (e) => { e.preventDefault(); void openViewer(a.path); });
+    btn.style.left = `${x}%`;
+    btn.style.top = `${y}%`;
+    ring.appendChild(btn);
+  });
+}
+
+/* ── Calendar footer — the RB-OS analog clock + week strip + year grid + what's next.
+   Lives under the month table in the same card so the whole time story is one surface. */
+const pad = (n) => String(n).padStart(2, '0');
+function tickAnalog() {
+  const now = new Date();
+  let h = now.getHours();
+  const ap = h >= 12 ? 'pm' : 'am';
+  h = h % 12 || 12;
+  const clk = document.getElementById('cal-foot-clock');
+  if (clk) clk.textContent = `${pad(h)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ap}`;
+  const wk = document.getElementById('cal-foot-week');
+  if (wk) {
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const wkNo = Math.ceil((((now - startOfYear) / 86400000) + startOfYear.getDay() + 1) / 7);
+    const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).replace(',', '');
+    const dow = now.toLocaleDateString('en-US', { weekday: 'short' });
+    wk.innerHTML = `<b>Wk${pad(wkNo)}</b> &nbsp;|&nbsp; ${escHtml(dateStr)} (${escHtml(dow)})`;
+  }
+  const hr = now.getHours() % 12, mn = now.getMinutes(), sc = now.getSeconds();
+  const rot = (deg) => `rotate(${deg} 24 24)`;
+  const ah = document.getElementById('ah'), am = document.getElementById('am'), as = document.getElementById('as');
+  if (ah) ah.setAttribute('transform', rot(hr * 30 + mn * 0.5));
+  if (am) am.setAttribute('transform', rot(mn * 6 + sc * 0.1));
+  if (as) as.setAttribute('transform', rot(sc * 6));
+}
+function renderYearGrid() {
+  const grid = document.getElementById('cal-foot-year');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const thisWeek = Math.floor((now - startOfYear) / (7 * 86400000));
+  for (let q = 0; q < 4; q++) {
+    const box = el('div', 'qtr');
+    box.appendChild(el('div', 'q', `Q${q + 1}`));
+    const days = el('div', 'days');
+    for (let w = 0; w < 13; w++) {
+      const gi = q * 13 + w;
+      const cls = ['d', gi < thisWeek ? 'past' : gi === thisWeek ? 'today' : ''];
+      days.appendChild(el('span', cls.join(' ')));
+    }
+    box.appendChild(days);
+    grid.appendChild(box);
+  }
+}
+function renderWhatsNext() {
+  const ul = document.getElementById('cal-foot-next');
+  if (!ul) return;
+  ul.innerHTML = '';
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const events = pulse.lastMonth && pulse.lastMonth.events;
+  if (!events || !events.length) { ul.appendChild(el('li', 'none', '<span class="none">Nothing scheduled</span>')); return; }
+  const upcoming = [];
+  for (let add = 0; add < 8; add++) {
+    const day = (now.getDay() + add) % 7;
+    events.filter((e) => e.day === day).forEach((e) => {
+      const [h2, m2] = String(e.time).split(':').map(Number);
+      const abs = add * 1440 + h2 * 60 + m2;
+      if (abs > nowMin || add > 0) upcoming.push({ ...e, abs, add });
+    });
+  }
+  upcoming.sort((a, b) => a.abs - b.abs);
+  upcoming.slice(0, 5).forEach((e) => {
+    const li = el('li');
+    const when = e.add === 0 ? 'today' : e.add === 1 ? 'tmrw' : `+${e.add}d`;
+    li.innerHTML = `<span><span class="when">${escHtml(when)}</span>&nbsp;${escHtml(e.title)}</span><span class="t">${escHtml(e.time)}</span>`;
+    ul.appendChild(li);
+  });
+}
+function escHtml(s) { return String(s ?? '').replace(/[&<>\"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c])); }
+function renderCalendarFoot() {
+  const foot = document.getElementById('pCalFoot');
+  if (!foot) return;
+  foot.replaceChildren();
+  const row = el('div', 'cal-foot-row');
+  const analog = el('div', 'analog');
+  analog.innerHTML = `
+    <svg viewBox="0 0 48 48" class="dial">
+      <circle cx="24" cy="24" r="22" class="dial"/>
+      <line x1="24" y1="24" x2="24" y2="12" class="hand hour" id="ah"/>
+      <line x1="24" y1="24" x2="24" y2="16" class="hand min" id="am"/>
+      <line x1="24" y1="24" x2="24" y2="10" class="hand sec" id="as"/>
+      <circle cx="24" cy="24" r="2" class="pin"/>
+    </svg>`;
+  const time = el('div', 'cal-foot-time');
+  time.appendChild(el('div', 'cal-foot-clock'));
+  time.appendChild(el('div', 'cal-foot-week'));
+  time.appendChild(el('div', 'cal-foot-loc'));
+  row.appendChild(analog);
+  row.appendChild(time);
+  foot.appendChild(row);
+  const grid = el('div', 'cal-foot-grid');
+  grid.appendChild(el('div', 'cal-foot-year'));
+  foot.appendChild(grid);
+  foot.appendChild(el('ul', 'cal-foot-next'));
+  const loc = document.getElementById('cal-foot-loc');
+  if (loc) loc.textContent = (pulse.lastMonth && pulse.lastMonth.localLabel) || '';
+  tickAnalog();
+  renderYearGrid();
+  renderWhatsNext();
+  setInterval(tickAnalog, 1000);
+}
+/* ── Skills Deck — ported from RB-OS. Reads the REAL skills (~/aios/skills/aios/…,
+   via window.glassShell.aiosLists()) rather than prototype JSON. Each card carries a
+   ▶ that opens the model × effort run panel, which builds a `claude -p` command
+   string the operator can copy or fire headless into a terminal. ─────────────── */
+const SKILL_EFFORTS = ['low', 'medium', 'high'];
+let skillRunSel = { model: 'opus', effort: 'medium' };
+let skillRunActive = null;
+
+async function renderSkillsDeck() {
+  const S = document.getElementById('pSkills');
+  if (!S) return;
+  S.replaceChildren();
+  S.appendChild(pulseTitle(S, 'pSkills', 'Skills Deck'));
+  let skills = [];
+  try { skills = ((await window.glassShell.aiosLists()).skills || []).slice(); }
+  catch (skillsErr) { console.error('[phase4] renderSkillsDeck:', skillsErr && skillsErr.message); skills = []; }
+  console.log('[phase4] renderSkillsDeck skills=' + skills.length);
+  if (!skills.length) {
+    S.appendChild(el('div', 'phmsg', 'No skills installed — add one in the Designer'));
+    return;
+  }
+  const grid = el('div', 'skill-grid');
+  for (const s of skills) {
+    const card = el('div', 'skill-card');
+    card.dataset.name = s.name;
+    card.innerHTML =
+      `<div class="sc-ic">${icon('skill', 14)}</div>
+       <div class="sc-nm"></div>
+       <div class="sc-ds"></div>`;
+    card.querySelector('.sc-nm').textContent = s.name;
+    card.querySelector('.sc-ds').textContent = s.description || s.group || '';
+    const foot = el('div', 'sc-foot');
+    const meta = el('div', 'sc-meta');
+    const model = (s.model || 'opus').toLowerCase();
+    meta.innerHTML = `<span class="badge ${model}">${model}</span>`;
+    if (s.effort) meta.innerHTML += `<span class="sep">·</span><span class="badge effort">${s.effort}</span>`;
+    foot.appendChild(meta);
+    const btns = el('div', 'sc-btns');
+    const play = el('button', 'iconbtn play', '▶');
+    play.title = 'Open run panel (headless)';
+    play.addEventListener('click', () => openSkillRunPanel(s));
+    const gear = el('button', 'iconbtn ghost', '⚙');
+    gear.title = 'Skill source: ' + (s.path || '.claude/skills/' + s.name);
+    gear.addEventListener('click', () => { if (s.path) void openViewer(s.path); });
+    btns.append(play, gear);
+    foot.appendChild(btns);
+    card.appendChild(foot);
+    grid.appendChild(card);
+  }
+  S.appendChild(grid);
+}
+
+function skillRunCmd(s) {
+  const base = `claude -p "Use the ${s.name} skill"`;
+  return `${base} --model ${skillRunSel.model} --effort ${skillRunSel.effort}`;
+}
+
+function renderSkillMatrix() {
+  const wrap = document.getElementById('run-matrix');
+  const models = ['opus', 'sonnet', 'fable'];
+  wrap.style.setProperty('--mx-n', String(SKILL_EFFORTS.length));
+  wrap.innerHTML = '';
+  const cols = el('div', 'mx-cols');
+  cols.appendChild(el('span', '', ''));
+  SKILL_EFFORTS.forEach((e) => cols.appendChild(el('span', '', e)));
+  wrap.appendChild(cols);
+  models.forEach((m) => {
+    const row = el('div', 'mx-row' + (m === skillRunSel.model ? ' on' : ''));
+    row.appendChild(el('span', 'mx-label', m));
+    SKILL_EFFORTS.forEach((e) => {
+      const on = m === skillRunSel.model && e === skillRunSel.effort;
+      const cell = el('button', 'mx-cell' + (on ? ' on' : ''), on ? '●' : '·');
+      cell.title = `${m} · ${e}`;
+      cell.onclick = () => { skillRunSel = { model: m, effort: e }; renderSkillMatrix(); updateSkillRunCmd(); };
+      row.appendChild(cell);
+    });
+    wrap.appendChild(row);
+  });
+}
+
+function updateSkillRunCmd() {
+  if (!skillRunActive) return;
+  document.getElementById('run-cmd').textContent = skillRunCmd(skillRunActive);
+}
+
+function openSkillRunPanel(s) {
+  skillRunActive = s;
+  skillRunSel = { model: (s.model || 'opus').toLowerCase(), effort: (s.effort || 'medium').toLowerCase() };
+  document.getElementById('run-title').textContent = s.name;
+  document.getElementById('run-sub').textContent = (s.group || 'headless').toLowerCase();
+  renderSkillMatrix();
+  updateSkillRunCmd();
+  const modal = document.getElementById('run-modal');
+  modal.hidden = false;
+  document.getElementById('run-copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(document.getElementById('run-cmd').textContent); }
+    catch { /* ignore */ }
+  };
+  document.getElementById('run-run').onclick = () => {
+    const cmd = document.getElementById('run-cmd').textContent;
+    void runWhere(cmd, s.name);
+    modal.hidden = true;
+  };
+  document.getElementById('run-close').onclick = () => (modal.hidden = true);
+  modal.onclick = (e) => { if (e.target === modal) modal.hidden = true; };
 }
 
 async function onIntentAsk() {
@@ -8548,6 +8897,8 @@ void initLocale().then(async () => {
      No prompt, no toast: the card just reflects whatever the machine currently has. */
   void refreshConnectors();
   setInterval(() => void refreshConnectors(), 5 * 60 * 1000);
+  // Initialize RB-OS globe visualization
+  void initGlobe();
   /* FIRST RUN: with no framework or no vault the app cannot do anything useful, and every
      route to Setup was a control a newcomer has no reason to click — so they landed on an
      empty workspace and a greeting with no next step. Open Setup for them.
@@ -8578,4 +8929,34 @@ void initLocale().then(async () => {
   } catch { /* if we cannot even ask, the Setup tab is still reachable by hand */ }
 });
 
+// Initialize RB-OS globe visualization
+void initGlobe();
+
 window.__workbenchOk = true; // smoke gate 4
+
+// RB-OS Globe visualization initialization
+async function initGlobe() {
+  try {
+    // Load the globe visualization script
+    const globeScript = document.createElement('script');
+    globeScript.src = './globe.js';
+    globeScript.async = false;
+    document.body.appendChild(globeScript);
+
+    // Wait for script to load
+    await new Promise((resolve, reject) => {
+      globeScript.onload = resolve;
+      globeScript.onerror = reject;
+    });
+
+    // Show the globe container (it was hidden by default)
+    const globeContainer = document.getElementById('globe-container');
+    if (globeContainer) {
+      globeContainer.style.display = 'block';
+    }
+
+    console.log('RB-OS globe visualization initialized');
+  } catch (error) {
+    console.error('Failed to initialize RB-OS globe visualization:', error);
+  }
+}

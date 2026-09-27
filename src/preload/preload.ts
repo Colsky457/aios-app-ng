@@ -132,6 +132,8 @@ contextBridge.exposeInMainWorld('glassShell', {
   removeFolder: (p: string): Promise<boolean> => ipcRenderer.invoke('fs:removeFolder', p),
   aiosLists: (): Promise<{ agents: unknown[]; commands: unknown[]; skills: unknown[]; frequent: unknown[]; running: unknown[]; suggestions: unknown[] }> => ipcRenderer.invoke('aios:lists'),
   fsIndex: (): Promise<{ name: string; path: string; root: string }[]> => ipcRenderer.invoke('fs:index'),
+  // the memory-map graph: nodes {id,kind,label,area,layer,path,note,changed} + links {s,t}
+  memoryMap: (): Promise<{ nodes: unknown[]; links: unknown[] }> => ipcRenderer.invoke('aios:memoryMap'),
   aiosPlugins: (): Promise<{ catalog: unknown[]; installed: unknown[]; marketplaces: unknown[] }> => ipcRenderer.invoke('aios:plugins'),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('shell:openExternal', url),
   sessionSignal: (pid: number, sig: string): Promise<boolean> => ipcRenderer.invoke('session:signal', { pid, sig }),

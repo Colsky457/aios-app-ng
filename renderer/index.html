@@ -63,6 +63,7 @@
            about you · workspaces · learned · shipped · reports · health. -->
       <div id="pDaily" class="pcard"></div>
       <div id="pCal" class="pcard"></div>
+      <div id="pCalFoot" class="pcal-foot"></div>
       <div id="pQuick" class="pcard"></div>
       <div id="pRun" class="pcard"></div>
       <div id="pAbout" class="pcard"></div>
@@ -72,15 +73,65 @@
       <div id="pReports" class="pcard"></div>
       <div id="pHealth" class="pcard"></div>
       <div id="pConnectors" class="pcard"></div>
+      <div id="pSkills" class="pcard rbtitle"></div>
+      <div id="pMicro" class="pcard rbtitle"></div>
+      <div id="pRoutines" class="pcard rbtitle"></div>
+      <!-- Memory-map graph — one canvas, six toggle views of the same nodes -->
+      <div id="pMap" class="pcard rbtitle">
+        <div class="ptitle" data-i18n="map.title">MEMORY MAP</div>
+        <div class="map-bar">
+          <div class="map-views">
+            <button class="map-toggle" data-act="view" data-val="rings" data-i18n-title="map.view.rings">rings</button>
+            <button class="map-toggle" data-act="view" data-val="circle" data-i18n-title="map.view.circle">circle</button>
+            <button class="map-toggle" data-act="view" data-val="areas" data-i18n-title="map.view.areas">areas</button>
+            <button class="map-toggle" data-act="view" data-val="links" data-i18n-title="map.view.links">links</button>
+            <button class="map-toggle" data-act="view" data-val="timeline" data-i18n-title="map.view.timeline">timeline</button>
+            <button class="map-toggle" data-act="view" data-val="3d-orbit" data-i18n-title="map.view.orbit">3d orbit</button>
+          </div>
+          <input id="map-search" class="map-search" placeholder="search label / path / note" />
+          <button class="map-toggle" data-act="names" data-i18n-title="map.names">names</button>
+          <button class="map-toggle" data-act="motion" data-i18n-title="map.motion">motion</button>
+          <button class="map-toggle" data-act="fit" data-i18n-title="map.fit">fit</button>
+          <button class="map-toggle" data-act="full" data-i18n-title="map.full">full</button>
+        </div>
+        <div class="map-body">
+          <div id="map-host" class="map-host"></div>
+          <div id="map-legend" class="map-legend"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Skills Deck run modal — model × effort matrix (ported from RB-OS) -->
+    <div id="run-modal" class="run-modal" hidden>
+      <div class="run-modal-card">
+        <div class="run-modal-head">
+          <span><b id="run-title">skill</b> <em id="run-sub">headless</em></span>
+          <button id="run-close" title="close">✕</button>
+        </div>
+        <div id="run-matrix" class="run-matrix"></div>
+        <div id="run-cmd" class="run-cmd"></div>
+        <div class="run-modal-actions">
+          <button id="run-copy" class="pbtn primary">COPY COMMAND</button>
+          <button id="run-run" class="pbtn">▶ RUN</button>
+          <span class="hint" id="run-hint"></span>
+        </div>
+      </div>
     </div>
     <div id="psplit" class="vsplit"></div>
     <div id="xwrap"><div id="xhead"><span data-i18n="explorer.heading">EXPLORER</span></div><div id="explorer"></div></div>
     <div id="xsplit" class="vsplit"></div>
     <div id="work">
-      <div id="viewzone" class="zone">
+      <div id="viewzone" class="zone" style="position: relative; overflow: hidden;">
         <div id="tabs" class="tabstrip"><span class="zlabel" id="zlabMain"></span><button class="newTab" data-i18n-title="tab.newTerminal">+</button><button class="zexp" id="zexpMain"></button></div>
+        <div id="globe-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;">
+          <canvas id="globe" width="800" height="600" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
+        </div>
         <div id="panes" class="panezone">
           <div id="empty">
+            <div id="artifact-ring" class="artifact-ring" hidden>
+              <div class="ring-core" id="ring-core">
+                <div><div class="ico" id="ring-ico">⬡</div><div class="lb" id="ring-lb">OPEN</div></div>
+              </div>
+            </div>
             <div class="emark" id="emptyMark"></div>
             <div class="ehint"><span data-i18n="empty.askHint">Open a note from the vault &nbsp;·&nbsp; <kbd>⌘J</kbd> ask AIOS</span><br/><span data-i18n="empty.keysHint"><kbd>⌘T</kbd> terminal &nbsp;·&nbsp; <kbd>⌘N</kbd> Claude session &nbsp;·&nbsp; <kbd>⌘1–4</kbd> layouts</span></div>
           </div>
@@ -101,6 +152,8 @@
 <script src="../node_modules/@xterm/addon-unicode11/lib/addon-unicode11.js"></script>
 <script src="../node_modules/@highlightjs/cdn-assets/highlight.min.js"></script>
 <script src="i18n.js"></script>
+<script src="d3-shim.js"></script>
+<script src="map.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
