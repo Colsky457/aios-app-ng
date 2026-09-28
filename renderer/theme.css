@@ -1803,7 +1803,7 @@ body.light .zsplit .pane.termcard.panefocus { border-color: var(--accent); box-s
 /* ── Memory map (RB-OS port) ─────────────────────────────────────────── */
 #pMap { padding: 0; overflow: hidden; }
 #pMap .ptitle { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #e2e2e8; }
-.map-bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.map-bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; flex-wrap: wrap; }
 .map-views { display: flex; gap: 2px; }
 .map-toggle { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtle); background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 3px 7px; cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
 .map-toggle:hover { color: var(--ink); border-color: var(--line); }

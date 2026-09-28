@@ -1072,4 +1072,20 @@
   "restore.elsewhere": "already open elsewhere: {names}",
   "restore.paused": "{name} is not running yet",
   "restore.resumeNow": "Resume"
+,
+  "map.title": "MEMORY MAP",
+  "map.view.rings": "rings",
+  "map.view.circle": "circle",
+  "map.view.areas": "areas",
+  "map.view.links": "links",
+  "map.view.timeline": "timeline",
+  "map.view.orbit": "3d orbit",
+  "map.names": "names",
+  "map.motion": "motion",
+  "map.fit": "fit",
+  "map.full": "full"
+,
+  "pulse.micro": "Micro Apps",
+  "pulse.routines": "Routines",
+  "pulse.skills": "Skills Deck"
 }

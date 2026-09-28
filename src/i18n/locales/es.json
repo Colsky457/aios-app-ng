@@ -1072,4 +1072,20 @@
   "restore.elsewhere": "ya abiertas en otro lugar: {names}",
   "restore.paused": "{name} aún no está corriendo",
   "restore.resumeNow": "Reanudar"
+,
+  "map.title": "MAPA DE MEMORIA",
+  "map.view.rings": "anillos",
+  "map.view.circle": "círculo",
+  "map.view.areas": "áreas",
+  "map.view.links": "enlaces",
+  "map.view.timeline": "línea de tiempo",
+  "map.view.orbit": "órbita 3D",
+  "map.names": "nombres",
+  "map.motion": "movimiento",
+  "map.fit": "ajustar",
+  "map.full": "pantalla completa"
+,
+  "pulse.micro": "Micro Apps",
+  "pulse.routines": "Rutinas",
+  "pulse.skills": "Skills Deck"
 }

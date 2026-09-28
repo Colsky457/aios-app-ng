@@ -202,6 +202,9 @@ function applyStaticI18n(root = document) {
   for (const n of root.querySelectorAll('[data-i18n]')) n.innerHTML = t(n.getAttribute('data-i18n'));
   for (const n of root.querySelectorAll('[data-i18n-title]')) n.title = t(n.getAttribute('data-i18n-title'));
 }
+// The static HTML ships data-i18n attributes that would otherwise render as raw keys.
+// app.js has no DOMContentLoaded handler — it runs at load — so fire the resolver now.
+applyStaticI18n();
 
 /* ── the pulse: PanelHost messages rendered NATIVELY (the iframe is gone) ──── */
 window.glassShell.onPanelPost((msg) => renderPulse(msg));
@@ -964,7 +967,7 @@ async function renderMicroApps() {
   const M = document.getElementById('pMicro');
   if (!M) return;
   M.replaceChildren();
-  M.appendChild(pulseTitle(M, 'pMicro', 'Micro Apps'));
+  M.appendChild(pulseTitle(M, 'pMicro', t('pulse.micro')));
   const list = el('div', 'applist');
   let rows = [];
   try {
@@ -993,7 +996,7 @@ async function renderRoutines() {
   const R = document.getElementById('pRoutines');
   if (!R) return;
   R.replaceChildren();
-  R.appendChild(pulseTitle(R, 'pRoutines', 'Routines'));
+  R.appendChild(pulseTitle(R, 'pRoutines', t('pulse.routines')));
   let freq = [], live = [];
   try {
     const L = await window.glassShell.aiosLists();
