@@ -678,9 +678,18 @@ ipcMain.handle('aios:lists', () => ({
 ipcMain.handle('aios:memoryMap', () => {
   const files = aios.fileIndex();
   const nodes = files.map((f) => {
-    const rel = f.path.replace(/\\/g, '/');
+    const rel = f.rel;
     const seg = rel.split('/');
-    const area = f.root || 'aios';
+    // area = the top-level directory, not the workspace label. `f.root` is the
+    // workspace tag and is the SAME for every file, which made the whole graph
+    // one flat blob — one area, one colour, and the areas view clustered
+    // everything into a single node. The top-level dir is what actually
+    // partitions the vault (agents · skills · templates · plugins · mcps ·
+    // hooks · vault · tests · scripts).
+    // Root-level docs (README, CLAUDE.md, SECURITY.md …) are each their own
+    // singleton area under the raw rule, which just inflates the legend and
+    // scatters the root files. Group them as `docs`.
+    const area = seg.length === 1 ? 'docs' : seg[0];
     const under = (p: string) => rel.includes('/' + p + '/') || rel.startsWith(p + '/');
     let kind: string, layer: string;
     if (under('agents')) { kind = 'agent'; layer = 'skills'; }

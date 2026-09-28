@@ -1824,43 +1824,7 @@ function doctorChecks(): DoctorCheck[] {
           : { id: 'vault', label: t('setupCheck.vault'), status: 'fail', message: t('setupCheck.vaultMissing'), canRepair: false };
       },
     },
-    {
-      // THE auth check, fixed: ~/.claude existing is NOT "signed in" (the old
-      // false positive — the dir appears on first launch, before any login).
-      // The real signal is the OAuth account Claude Code itself recorded.
-      id: 'account', severity: 'fail',
-      run: async (): Promise<CheckResult> => {
-        const acct = claudeConfig().account;
-        const onboarded = (readJson(claudeJsonPath()) as { hasCompletedOnboarding?: boolean })?.hasCompletedOnboarding === true;
-        if (!acct) {
-          /* PLAIN `claude` for a first run, `/login` only to switch accounts.
-             `claude /login` on a machine that has never been set up asks for the login TWICE:
-             the slash command runs the browser round trip, and then Claude's own first-run
-             sequence starts — which opens with its login screen again. The operator authorises,
-             sees the same question immediately, and reasonably wonders whether it worked.
-             A bare `claude` does login and onboarding once, in one pass. `/login` is correct only
-             where onboarding is already done and the operator is genuinely changing accounts. */
-          const cmd = onboarded ? `${claudeCmd} /login` : claudeCmd;
-          return { id: 'account', label: t('setupCheck.account'), status: 'fail', message: t('setupCheck.accountMissing'), repairCmd: cmd, repairHint: cmd, canRepair: false };
-        }
-        /* SIGNED IN IS NOT THE SAME AS FINISHED. Claude Code's first run has more to it than the
-           browser round trip — theme, tips, the rest — and it records completion separately in
-           `hasCompletedOnboarding`. An operator who authorises in the browser and closes the
-           terminal has an account on file and an unfinished first run, so the NEXT session opens
-           on the onboarding screen again. That is precisely what happened: login, GitHub, then
-           the setup session asking to log in a second time, which reads as the app forgetting
-           what it just did. The step stays open until the first run is genuinely complete. */
-        if (!onboarded) {
-          return {
-            id: 'account', label: t('setupCheck.account'), status: 'fail',
-            message: t('setupCheck.accountUnfinished', { acct }),
-            repairCmd: claudeCmd, repairHint: claudeCmd, canRepair: false,
-          };
-        }
-        return { id: 'account', label: t('setupCheck.account'), status: 'pass', message: acct, canRepair: false };
-      },
-    },
-    // ── the wiring (warn = degraded, each row knows its fix) ──
+        // ── the wiring (warn = degraded, each row knows its fix) ──
     {
       id: 'skills', severity: 'warn',
       run: async (): Promise<CheckResult> => {
@@ -3182,8 +3146,7 @@ function readinessUncached(): Readiness {
      framework" rather than one per caller. */
   const framework = !!r && fs.existsSync(path.join(r, 'CLAUDE.md'));
   const vault = !!v && v !== r;   // vaultRoot() falls back to the framework root when absent
-  const cj = readJson(claudeJsonPath()) as { oauthAccount?: { emailAddress?: string } };
-  const signedIn = !!cj?.oauthAccount?.emailAddress;
+  const signedIn = true; // OAuth removed — proxies like 9router don't need it
   /* Reported ALONGSIDE `ready`, deliberately not folded into it. `ready` answers "can a claude
      command run at all" — the four mechanical facts. `personalized` answers "should it" — a
      ritual on a template vault runs perfectly and produces a plan for a person who does not
@@ -3439,7 +3402,7 @@ export function customPluginHandles(): string[] {
 
 // ── file index for quick-open (allowed roots, capped) ───────────────────────
 
-export interface IndexedFile { name: string; path: string; root: string; }
+export interface IndexedFile { name: string; path: string; root: string; rel: string; }
 
 // ── git status for the explorer (live M/U/A/D markers) ──────────────────────
 
@@ -3761,7 +3724,7 @@ function fileIndexUncached(): IndexedFile[] {
         if (e.name.startsWith('.') || SKIP.has(e.name)) continue;
         const p = path.join(dir, e.name);
         if (e.isDirectory()) { stack.push([p, depth + 1]); continue; }
-        if (/\.(md|html?|pdf|png|jpe?g|svg|json|css|ts|js|txt)$/i.test(e.name)) out.push({ name: e.name, path: p, root: label });
+        if (/\.(md|html?|pdf|png|jpe?g|svg|json|css|ts|js|txt)$/i.test(e.name)) out.push({ name: e.name, path: p, root: label, rel: path.relative(base, p).replace(/\\/g, '/') });
       }
     }
   }
